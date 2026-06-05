@@ -249,7 +249,10 @@
 (define-minor-mode tinker-mode
   "tinker-bridge経由でWSLファイルを編集するマイナーモード"
   :lighter " Tinker"
-  :keymap tinker-mode-map)
+  :keymap tinker-mode-map
+  (if tinker-mode
+      (add-hook 'write-file-functions #'tinker--save-hook nil t)
+    (remove-hook 'write-file-functions #'tinker--save-hook t)))
 
 (provide 'tinker)
 
