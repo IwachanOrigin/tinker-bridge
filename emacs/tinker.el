@@ -5,27 +5,26 @@
 
 ;;; Code:
 
+(require 'project)
+(require 'cl-lib)
+(require 'subr-x)
+
 ;; -----------------
 ;; Custome variable
 ;; -----------------
 
 (defgroup tinker nil
-  "WSL remote file editing via tinker-bridge"
+  "WSL remote file editing via tinker-bridge."
   :group 'files)
 
 (defcustom tinker-host "127.0.0.1"
-  "tinker-bridge のホスト名またはIPアドレス"
+  "tinker-bridge のホスト名またはIPアドレス."
   :type 'string
   :group 'tinker)
 
 (defcustom tinker-port 7070
-  "tinker-bridge が listen する TCP ポート番号"
+  "tinker-bridge が listen する TCP ポート番号."
   :type 'integer
-  :group 'tinker)
-
-(defcustom tinker-bridge-executable "tinker-bridge"
-  "tinker-bridge バイナリのパス. nilなら自動起動しない"
-  :type 'string
   :group 'tinker)
 
 ;; -----------------
@@ -33,26 +32,26 @@
 ;; -----------------
 
 (defvar tinker--connection nil
-  "tinker-bridgeへのtcp ネットワークプロセス")
+  "tinker-bridgeへのtcp ネットワークプロセス.")
 
 (defvar tinker--request-id 0
-  "リクエストIDのカウンタ")
+  "リクエストIDのカウンタ.")
 
 (defvar tinker--pending-requests (make-hash-table :test 'equal)
-  "id -> callback の対応表. レスポンス待ちリクエストを管理する")
+  "id -> callback の対応表.レスポンス待ちリクエストを管理する.")
 
 (defvar tinker--recv-buffer ""
-  "受信途中のデータを蓄積するバッファ")
+  "受信途中のデータを蓄積するバッファ.")
 
 (defvar-local tinker-remote-path nil
-  "このバッファが対応するwsl上のファイルパス")
+  "このバッファが対応するwsl上のファイルパス.")
 
 ;; -----------------
 ;; 接続管理
 ;; -----------------
 
 (defun tinker--connect ()
-  "tinker-bridge に TCP 接続する. すでに接続済みなら何もしない"
+  "tinker-bridge に TCP 接続する.すでに接続済みなら何もしない."
   (when (or (null tinker--connection)
             (not (process-live-p tinker--connection)))
     (message "tinker: connecting to %s:%d..." tinker-host tinker-port)
@@ -69,7 +68,7 @@
     (message "tinker: connected.")))
 
 (defun tinker--sentinel (_proc event)
-  "接続状態の変化を処理する"
+  "接続状態の変化を処理する."
   (message "tinker: connection event: %s" (string-trim event))
   (when (string-match-p "\\(closed\\|failed\\|broken\\)" event)
     (setq tinker--connection nil)
@@ -77,7 +76,7 @@
     (setq tinker--recv-buffer "")))
 
 (defun tinker--filter (_proc data)
-  "受信データを処理する。\\n区切りでJSONを切り出してディスパッチ"
+  "受信データを処理する。\\n区切りでJSONを切り出してディスパッチ."
   (setq tinker--recv-buffer (concat tinker--recv-buffer data))
   (while (string-match "\n" tinker--recv-buffer)
     (let* ((pos (match-beginning 0))
@@ -97,17 +96,21 @@
 ;; リクエスト送信
 ;; -----------------
 
-(defun tinker--send (op path &optional content callback)
-  "OP/PATH/CONTENT を JSON で送信し、CALLBACK を登録する"
-  (tinker--connect)
+(defun tinker--make-request (op path &optional content)
+  "リクエスト用ハッシュテーブルを生成する."
   (setq tinker--request-id (1+ tinker--request-id))
-  (let* ((id tinker--request-id)
-         (req (let ((h (make-hash-table :test 'equal)))
-                (puthash "id"    id   h)
-                (puthash "op"    op   h)
-                (puthash "path"  path h)
-                (when content (puthash "content" content h))
-                h))
+  (let ((h (make-hash-table :test 'equal)))
+    (puthash "id"   tinker--request-id h)
+    (puthash "op"   op                 h)
+    (puthash "path" path               h)
+    (when content (puthash "content" content h))
+    h))
+
+(defun tinker--send (op path &optional content callback)
+  "OP/PATH/CONTENT を JSON で送信し、CALLBACK を登録する."
+  (tinker--connect)
+  (let* ((req      (tinker--make-request op path content))
+         (id       (gethash "id" req))
          (json-str (concat (json-serialize req) "\n")))
     (when callback
       (puthash id callback tinker--pending-requests))
@@ -119,7 +122,7 @@
 
 ;;;###autoload
 (defun tinker-list (path)
-  "WSL上のPATHのファイル一覧を取得してバッファへ表示する"
+  "WSL上のPATHのファイル一覧を取得してバッファへ表示する."
   (interactive "sWSL path: ")
   (tinker--send "list" path nil
                 (lambda (res)
@@ -149,7 +152,7 @@
 
 ;;;###autoload
 (defun tinker-find-file (path)
-  "WSL上のPATHをEmacsバッファとして開く"
+  "WSL上のPATHをEmacsバッファとして開く."
   (interactive "sWSL file path: ")
   (tinker--send "read" path nil
                 (lambda (res)
@@ -165,13 +168,14 @@
                             (let ((auto-mode-alist auto-mode-alist))
                               (set-auto-mode))
                             ;; ローカル変数にパスを記録
-                            (setq-local tinker-remote-path path)))
+                            (setq-local tinker-remote-path path)
+                            (tinker-mode 1)))
                         (switch-to-buffer buf)
                         (message "tinker: opened %s" path))
                     (message "tinker: read error: %s" (alist-get 'error res))))))
 
 (defun tinker--get-or-create-buffer (path)
-  "PATHに対応するバッファを取得または新規作成"
+  "PATHに対応するバッファを取得または新規作成."
   (let ((bufname (format "*tinker:%s*" (file-name-nondirectory path))))
     (or (get-buffer bufname)
         (generate-new-buffer bufname))))
@@ -182,7 +186,7 @@
 
 ;;;###autoload
 (defun tinker-save-buffer ()
-  "現在のバッファをWSL上のtinker-remote-pathに保存する"
+  "現在のバッファをWSL上のtinker-remote-pathに保存する."
   (interactive)
   (unless tinker-remote-path
     (user-error "このバッファはtinkerで開かれていません"))
@@ -202,10 +206,10 @@
 
 ;;;###autoload
 (defun tinker-close-buffer ()
-  "現在のtinkerバッファを閉じる。未保存なら確認する"
+  "現在のtinkerバッファを閉じる。未保存なら確認する."
   (interactive)
   (when (and (buffer-modified-p)
-             (not (y-or-n-p "未保存の変更があります。閉じますか？")))
+             (not (y-or-n-p "未保存の変更があります。閉じますか?")))
     (user-error "キャンセルしました"))
   (kill-buffer (current-buffer)))
 
@@ -214,7 +218,7 @@
 ;; -----------------
 
 (defun tinker--save-hook ()
-  "tinker-remote-pathが設定されていれば、tinker-save-buffer を使う"
+  "tinker-remote-pathが設定されていれば、tinker-save-buffer を使う."
   (when (and (boundp 'tinker-remote-path) tinker-remote-path)
     (tinker-save-buffer)
     t)) ; non-nil を返すとsave-bufferをキャンセル
@@ -225,12 +229,61 @@
 
 ;;;###autoload
 (defun tinker-disconnect ()
-  "tinker-bridge との接続を切断する"
+  "tinker-bridge との接続を切断する."
   (interactive)
   (when (and tinker--connection (process-live-p tinker--connection))
     (delete-process tinker--connection)
     (setq tinker--connection nil)
     (message "tinker: disconnected.")))
+
+;; -----------------
+;; project.elのバックエンド
+;; -----------------
+
+(defvar tinker--projects (make-hash-table :test 'equal)
+  "root-path -> ファイルリストのキャッシュ")
+
+(cl-defstruct tinker-project root files)
+
+(defun tinker-open-project (root)
+  "WSL上のROOTをプロジェクトとして開き、project.elに登録する."
+  (interactive "sWSL project root: ")
+  (tinker--send "open-project" root nil
+                (lambda (res)
+                  (if (not (eq (alist-get 'ok res) t))
+                      (message "tinker: open-project error: %s" (alist-get 'error res))
+                    (let* ((raw (alist-get 'content res))
+                           (files (json-parse-string raw :array-type 'list))
+                           (proj (make-tinker-project :root root :files files)))
+                      (puthash root proj tinker--projects)
+                      ;; project.elのリストへ登録
+                      (project-remember-projects-under root)
+                      (message "tinker: project opened %s (%d files)" root (length files))
+                      ;; ファイル選択UIを起動
+                      (tinker--project-find-file proj))))))
+
+(defun tinker--project-find-file (proj)
+  "PROJ のファイル一覧から選択してファイルを開く."
+  (let* ((root (tinker-project-root proj))
+         (files (tinker-project-files proj))
+         (selected (completing-read
+                    (format "[tinker] %s: " (file-name-nondirectory root))
+                    files nil t)))
+    (when selected
+      (tinker-find-file (concat root "/" selected)))))
+
+;;;###autoload
+(defun tinker-project-find-file ()
+  "現在のtinkerプロジェクトからファイルを選択して開く."
+  (interactive)
+  (if (hash-table-empty-p tinker--projects)
+      (call-interactively #'tinker-open-project)
+    (let* ((roots (hash-table-keys tinker--projects))
+           (root  (if (= (length roots) 1)
+                      (car roots)
+                    (completing-read "Project: " roots nil t)))
+           (proj  (gethash root tinker--projects)))
+      (tinker--project-find-file proj))))
 
 ;; -----------------
 ;; キーマップ
@@ -241,19 +294,34 @@
     (define-key map (kbd "C-x C-s") #'tinker-save-buffer)
     (define-key map (kbd "C-x k") #'tinker-close-buffer)
     map)
-  "tinker バッファ用キーマップ")
+  "tinker バッファ用キーマップ.")
+
+(defvar tinker-global-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "C-c t o") #'tinker-open-project)
+    (define-key map (kbd "C-c t f") #'tinker-project-find-file)
+    (define-key map (kbd "C-c t l") #'tinker-list)
+    (define-key map (kbd "C-c t q") #'tinker-disconnect)
+    map)
+  "tinker グローバルキーマップ.")
 
 ;; -----------------
 ;; マイナーモード(tinkerバッファに自動付与)
 ;; -----------------
 
 (define-minor-mode tinker-mode
-  "tinker-bridge経由でWSLファイルを編集するマイナーモード"
+  "tinker-bridge経由でWSLファイルを編集するマイナーモード."
   :lighter " Tinker"
   :keymap tinker-mode-map
   (if tinker-mode
       (add-hook 'write-file-functions #'tinker--save-hook nil t)
     (remove-hook 'write-file-functions #'tinker--save-hook t)))
+
+(define-minor-mode tinker-global-mode
+  "tinker グローバルキーバインドを有効にするモード"
+  :lighter ""
+  :global t
+  :keymap tinker-global-map)
 
 (provide 'tinker)
 
