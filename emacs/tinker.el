@@ -102,11 +102,12 @@
   (tinker--connect)
   (setq tinker--request-id (1+ tinker--request-id))
   (let* ((id tinker--request-id)
-         (req (if content
-                  (list (cons "id" id) (cons "op" op)
-                        (cons "path" path) (cons "content" content))
-                (list (cons "id" id) (cons "op" op)
-                      (cons "path" path))))
+         (req (let ((h (make-hash-table :test 'equal)))
+                (puthash "id"    id   h)
+                (puthash "op"    op   h)
+                (puthash "path"  path h)
+                (when content (puthash "content" content h))
+                h))
          (json-str (concat (json-serialize req) "\n")))
     (when callback
       (puthash id callback tinker--pending-requests))
