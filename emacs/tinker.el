@@ -165,7 +165,7 @@
                             (set-buffer-modified-p nil)
                             (goto-char (point-min))
                             ;; ファイル名からメジャーモードを推定
-                            (let ((auto-mode-alist auto-mode-alist))
+                            (let ((buffer-file-name path))
                               (set-auto-mode))
                             ;; ローカル変数にパスを記録
                             (setq-local tinker-remote-path path)
@@ -257,7 +257,6 @@
                            (proj (make-tinker-project :root root :files files)))
                       (puthash root proj tinker--projects)
                       ;; project.elのリストへ登録
-                      (project-remember-projects-under root)
                       (message "tinker: project opened %s (%d files)" root (length files))
                       ;; ファイル選択UIを起動
                       (tinker--project-find-file proj))))))
