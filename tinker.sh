@@ -47,7 +47,7 @@ fi
 # ----- emacs へ通知 -----
 WINDOWS_IP=$(ip route | grep default | awk '{print $3}')
 PAYLOAD="{\"op\":\"open-project\",\"path\":\"$TARGET\"}"
-if echo "$PAYLOAD" | timeout 3 nc -q1 127.0.0.1 "$NOTIFY_PORT" > /dev/null 2>&1;
+if echo "$PAYLOAD" | timeout 3 nc -q1 "$WINDOWS_IP" "$NOTIFY_PORT" > /dev/null 2>&1;
 then
     echo "tinker: opened '$TARGET' in emacs."
 else
