@@ -18,6 +18,9 @@ emacsでwsl-remoteみたいなことをやってみるプロジェクト
   curl -sSL https://github.com/IwachanOrigin/tinker-bridge/releases/latest/download/install.sh | bash
 #+end_src
 
+インストール後は「tinker」としてbinフォルダへ配置されます。
+編集を行いたいファイルの存在するフォルダへ移動し、「tinker .」のようにして起動します。
+
 *** ビルドして配置する
 1. tinker.el を emacsへrequireします。
 2. tinker.sh, tinker-bridge, tinker-serverをwsl側へ配置します。
