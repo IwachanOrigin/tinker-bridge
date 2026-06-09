@@ -1,0 +1,47 @@
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++
+
+      - name: Build
+        run: |
+          mkdir build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j4
+
+      - name: Package
+        run: |
+          ARCH=$(uname -m)
+          OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+          TARBALL="tinker-bridge-${OS}-${ARCH}.tar.gz"
+          tar czf "$TARBALL" \
+            -C build tinker-server tinker-bridge \
+            -C .. tinker.sh install.sh emacs/tinker.el
+          echo "TARBALL=$TARBALL" >> $GITHUB_ENV
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ env.TARBALL }}
+            install.sh
+            emacs/tinker.el
+          generate_release_notes: true
+
+          

@@ -4,9 +4,9 @@
 # HOW TO USE : tinker [path]
 # path省略時はカレントディレクトリを渡す
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SERVER_BIN="$SCRIPT_DIR/build/tinker-server"
-BRIDGE_BIN="$SCRIPT_DIR/build/tinker-bridge"
+INSTALL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SERVER_BIN="$INSTALL_DIR/tinker-server"
+BRIDGE_BIN="$INSTALL_DIR/tinker-bridge"
 SOCKET_PATH="/tmp/tinker-bridge.sock"
 SERVER_PORT=7070
 NOTIFY_PORT=7071
