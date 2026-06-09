@@ -3,3 +3,42 @@
 
 ** Introduction
 emacsでwsl-remoteみたいなことをやってみるプロジェクト
+
+** Demo
+[[https://github.com/user-attachments/assets/ebe95676-123e-47e8-a9a7-ec76f2b0441b][デモ動画]]
+
+** Dependency
+- CMake
+- GCC(g++)
+- emacs
+
+** How to use
+*** install.shを使ってインストールする
+#+begin_src shell
+  curl -sSL https://github.com/IwachanOrigin/tinker-bridge/releases/latest/download/install.sh | bash
+#+end_src
+
+*** ビルドして配置する
+1. tinker.el を emacsへrequireします。
+2. tinker.sh, tinker-bridge, tinker-serverをwsl側へ配置します。
+3. tinker.sh内の以下を配置先にあわせて編集します。
+   #+begin_src shell
+     SERVER_BIN="$INSTALL_DIR/tinker-server"
+     BRIDGE_BIN="$INSTALL_DIR/tinker-bridge"
+   #+end_src
+
+4. tinker.sh に実行権限を付与します。
+   #+begin_src shell
+     chmod +x tinker.sh
+   #+end_src
+
+5. wsl側の任意フォルダ上で以下のように実行します。
+   #+begin_src shell
+     ./tinker.sh <path>
+   #+end_src
+
+   ./tinker.sh とだけ実行した場合はカレントディレクトリのpathが使用されます。
+
+6. Windows側のemacsへ編集ファイルの一覧が通知されるので、編集したいファイルを選択します。
+
+   
