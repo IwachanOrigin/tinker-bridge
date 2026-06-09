@@ -365,12 +365,15 @@
         (make-network-process
          :name     "tinker-notify"
          :server   t
-         :host     "127.0.0.1"
+         :host     "0.0.0.0"
          :service  tinker-notify-port
          :coding   'utf-8
          :filter   #'tinker--notify-filter
-         :sentinel (lambda (_p e)
-                     (message "tinker-notify: %s" (string-trim e)))))
+         :sentinel (lambda (proc e)
+                     (message "tinker-notify: %s" (string-trim e))
+                     ;; 子プロセス接続時にフィルターを設定
+                     (when (string-match-p "open" e)
+                       (set-process-filter proc #'tinker--notify-filter)))))
   (message "tinker: notify server listening on :%d" tinker-notify-port))
 
 (defun tinker-stop-notify-server ()
