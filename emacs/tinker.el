@@ -352,6 +352,10 @@
                (path (alist-get 'path msg)))
           (when (and (equal op "open-project") path)
             (message "tinker: open-project request from WSL: %s" path)
+            ;;
+            (select-frame-set-input-focus (selected-frame))
+            (when (fboundp 'w32-focus-frame)
+              (w32-focus-frame (selected-frame)))
             (tinker-open-project path)))))))
 
 (defun tinker-start-notify-server ()
