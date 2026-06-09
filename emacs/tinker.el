@@ -322,6 +322,66 @@
   :global t
   :keymap tinker-global-map)
 
+;; -----------------
+;; tinker . 通知受信サーバ(TCP: 7071)
+;; -----------------
+
+(defcustom tinker-notify-port 7071
+  "WSL側tinkerコマンドからの通知を受け付けるTCPポート番号."
+  :type 'integer
+  :group 'tinker)
+
+(defvar tinker--notify-server nil
+  "通知受信用TCPサーバプロセス.")
+
+(defvar tinker--notify-recv-buffer ""
+  "通知受信途中データの蓄積バッファ.")
+
+(defun tinker--notify-filter (_proc data)
+  "WSLからの通知を受け取りopen-projectを実行する."
+  (setq tinker--notify-recv-buffer
+        (concat tinker--notify-recv-buffer data))
+  (while (string-match "\n" tinker--notify-recv-buffer)
+    (let* ((pos (match-beginning 0))
+           (line (substring tinker--notify-recv-buffer 0 pos)))
+      (setq tinker--notify-recv-buffer
+            (substring tinker--notify-recv-buffer (1+ pos)))
+      (unless (string-empty-p line)
+        (let* ((msg  (json-parse-string line :object-type 'alist))
+               (op   (alist-get 'op msg))
+               (path (alist-get 'path msg)))
+          (when (and (equal op "open-project") path)
+            (message "tinker: open-project request from WSL: %s" path)
+            (tinker-open-project path)))))))
+
+(defun tinker-start-notify-server ()
+  "WSLからの通知を受け付けるTCPサーバを起動する"
+  (interactive)
+  (when (and tinker--notify-server
+             (process-live-p tinker--notify-server))
+    (delete-process tinker--notify-server))
+  (setq tinker--notify-recv-buffer "")
+  (setq tinker--notify-server
+        (make-network-process
+         :name     "tinker-notify"
+         :server   t
+         :host     "127.0.0.1"
+         :service  tinker-notify-port
+         :coding   'utf-8
+         :filter   #'tinker--notify-filter
+         :sentinel (lambda (_p e)
+                     (message "tinker-notify: %s" (string-trim e)))))
+  (message "tinker: notify server listening on :%d" tinker-notify-port))
+
+(defun tinker-stop-notify-server ()
+  "通知サーバを停止する."
+  (interactive)
+  (when (and tinker--notify-server
+             (process-live-p tinker--notify-server))
+    (delete-process tinker--notify-server)
+    (setq tinker--notify-server nil)
+    (message "tinker: notify server stopped.")))
+
 (provide 'tinker)
 
 ;;; tinker.el ends here
